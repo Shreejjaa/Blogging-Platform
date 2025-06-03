@@ -1,0 +1,37 @@
+.create-post-container {
+  max-width: 700px;
+  margin: 50px auto;
+  padding: 20px;
+  background-color: #f4f4f4;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.create-post-container h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.create-post-container input[type="text"] {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  font-size: 18px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+
+.create-post-container .ql-container {
+  min-height: 200px;
+  margin-bottom: 15px;
+}
+
+.create-post-container button {
+  padding: 10px 20px;
+  font-size: 16px;
+  background-color: #0077cc;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
