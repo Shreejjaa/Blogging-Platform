@@ -1,0 +1,23 @@
+.blog-list-container {
+  max-width: 800px;
+  margin: 50px auto;
+  padding: 20px;
+}
+
+.blog-card {
+  background-color: #fff;
+  padding: 15px;
+  margin-bottom: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.blog-card h3 {
+  margin-bottom: 10px;
+  color: #0077cc;
+}
+
+.blog-content {
+  font-size: 16px;
+  line-height: 1.5;
+}
