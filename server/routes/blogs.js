@@ -1,115 +1,245 @@
 const express = require('express');
 const Blog = require('../models/Blog');
 const router = express.Router();
+const { auth } = require('../middleware/authMiddleware');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-// POST /api/posts - Create a new blog post with author info and categories
-router.post('/', async (req, res) => {
-  const { title, content, categories } = req.body; // added categories here
-  const user = JSON.parse(req.headers.user); // Get user from headers
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'blog_images',
+    allowed_formats: ['jpg', 'png', 'jpeg'],
+  },
+});
+const upload = multer({ storage });
+
+// @route   POST /api/blogs
+// @desc    Create a new blog post
+// @access  Private
+router.post('/', auth, async (req, res) => {
+  const { title, content, coverImage, tags, status } = req.body;
   try {
     const newBlog = new Blog({
       title,
       content,
-      author: user.username,
-      categories: categories || [] // Save categories or empty array
+      coverImage,
+      tags,
+      status,
+      author: req.user.id,
     });
-
-    await newBlog.save();
-    res.status(201).json({ message: 'Blog post created successfully!' });
-  } catch (err) {
-    res.status(500).json({ message: 'Error saving blog', error: err.message });
-  }
-});
-
-// GET /api/posts - Get all blog posts
-router.get('/', async (req, res) => {
-  try {
-    const blogs = await Blog.find().sort({ createdAt: -1 });
-    res.json(blogs);
-  } catch (err) {
-    res.status(500).json({ message: 'Error fetching blogs', error: err.message });
-  }
-});
-
-// GET /api/posts/:id - Get blog post by ID
-router.get('/:id', async (req, res) => {
-  try {
-    const blog = await Blog.findById(req.params.id);
-    if (!blog) return res.status(404).json({ message: 'Blog not found' });
+    const blog = await newBlog.save();
     res.json(blog);
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching blog', error: err.message });
+    console.error(err.message);
+    res.status(500).send('Server Error');
   }
 });
 
-// PUT /api/posts/:id - Update a blog post
-router.put('/:id', async (req, res) => {
-  const { title, content } = req.body;
+// @route   GET /api/blogs
+// @desc    Get all blogs (with search and tag filtering)
+// @access  Public
+router.get('/', async (req, res) => {
   try {
-    const updatedBlog = await Blog.findByIdAndUpdate(
-      req.params.id,
-      { title, content },
-      { new: true }
-    );
-    res.json(updatedBlog);
-  } catch (err) {
-    res.status(500).json({ message: 'Error updating blog', error: err.message });
-  }
-});
+    const { search, tag } = req.query;
+    let query = { status: 'published' };
 
-// DELETE /api/posts/:id - Delete a blog post
-router.delete('/:id', async (req, res) => {
-  try {
-    await Blog.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Blog deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ message: 'Error deleting blog', error: err.message });
-  }
-});
-
-// POST /api/posts/:id/comments - Add a comment to a blog
-router.post('/:id/comments', async (req, res) => {
-  const { content } = req.body;
-  const user = JSON.parse(req.headers.user);
-
-  try {
-    const blog = await Blog.findById(req.params.id);
-    if (!blog) return res.status(404).json({ message: 'Blog not found' });
-
-    const newComment = {
-      author: user.username,
-      content,
-    };
-
-    blog.comments.push(newComment);
-    await blog.save();
-
-    res.status(201).json({ message: 'Comment added successfully' });
-  } catch (err) {
-    res.status(500).json({ message: 'Error adding comment', error: err.message });
-  }
-});
-
-// PATCH /api/posts/:id/like - Toggle like/unlike
-router.patch('/:id/like', async (req, res) => {
-  const user = JSON.parse(req.headers.user);
-  const username = user.username;
-
-  try {
-    const blog = await Blog.findById(req.params.id);
-    if (!blog) return res.status(404).json({ message: 'Blog not found' });
-
-    if (blog.likes.includes(username)) {
-      blog.likes = blog.likes.filter((u) => u !== username); // Unlike
-    } else {
-      blog.likes.push(username); // Like
+    if (search) {
+      query.$text = { $search: search };
+    }
+    if (tag) {
+      query.tags = tag;
     }
 
-    await blog.save();
-    res.json({ message: 'Updated like status', likes: blog.likes.length });
+    const blogs = await Blog.find(query)
+      .populate('author', ['name'])
+      .sort({ createdAt: -1 });
+    res.json(blogs);
   } catch (err) {
-    res.status(500).json({ message: 'Error updating like', error: err.message });
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET /api/blogs/mydrafts
+// @desc    Get current user's draft posts
+// @access  Private
+router.get('/mydrafts', auth, async (req, res) => {
+  try {
+    const drafts = await Blog.find({ author: req.user.id, status: 'draft' })
+      .sort({ createdAt: -1 });
+    res.json(drafts);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET /api/blogs/user/:userId
+// @desc    Get all blogs by a specific user
+// @access  Public
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const blogs = await Blog.find({ author: req.params.userId, status: 'published' })
+      .populate('author', ['name'])
+      .sort({ createdAt: -1 });
+    res.json(blogs);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   POST /api/blogs/upload
+// @desc    Upload a blog image
+// @access  Private
+router.post('/upload', auth, upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ msg: 'No file uploaded.' });
+  }
+  res.json({ url: req.file.path });
+});
+
+// @route   GET /api/blogs/:id
+// @desc    Get a single blog by ID
+// @access  Public
+router.get('/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id).populate('author', ['name']).populate('comments.user', ['name']);
+    if (!blog) {
+      return res.status(404).json({ msg: 'Blog not found' });
+    }
+    res.json(blog);
+  } catch (err) {
+    console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Blog not found' });
+    }
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   PUT /api/blogs/:id
+// @desc    Update a blog post
+// @access  Private
+router.put('/:id', auth, async (req, res) => {
+  const { title, content, coverImage, tags, status } = req.body;
+  try {
+    let blog = await Blog.findById(req.params.id);
+    if (!blog) return res.status(404).json({ msg: 'Blog not found' });
+
+    // Check user
+    if (blog.author.toString() !== req.user.id) {
+      return res.status(401).json({ msg: 'User not authorized' });
+    }
+
+    blog = await Blog.findByIdAndUpdate(
+      req.params.id,
+      { $set: { title, content, coverImage, tags, status } },
+      { new: true }
+    );
+    res.json(blog);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   DELETE /api/blogs/:id
+// @desc    Delete a blog post
+// @access  Private
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) return res.status(404).json({ msg: 'Blog not found' });
+
+    // Check user
+    if (blog.author.toString() !== req.user.id) {
+      return res.status(401).json({ msg: 'User not authorized' });
+    }
+
+    await Blog.findByIdAndDelete(req.params.id);
+    res.json({ msg: 'Blog removed' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   PUT /api/blogs/:id/like
+// @desc    Like or unlike a blog post
+// @access  Private
+router.put('/:id/like', auth, async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    // Check if the post has already been liked by this user
+    if (blog.likes.some((like) => like.toString() === req.user.id)) {
+      // Unlike it
+      blog.likes = blog.likes.filter((like) => like.toString() !== req.user.id);
+    } else {
+      // Like it
+      blog.likes.unshift(req.user.id);
+    }
+    await blog.save();
+    res.json(blog.likes);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   POST /api/blogs/:id/comment
+// @desc    Comment on a blog post
+// @access  Private
+router.post('/:id/comment', auth, async (req, res) => {
+    const { text } = req.body;
+    try {
+        const blog = await Blog.findById(req.params.id);
+        const newComment = {
+            text: text,
+            user: req.user.id,
+        };
+        blog.comments.unshift(newComment);
+        await blog.save();
+        const populatedBlog = await Blog.findById(req.params.id).populate('comments.user', ['name']);
+        res.json(populatedBlog.comments);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route    DELETE /api/blogs/:id/comments/:comment_id
+// @desc     Delete a comment
+// @access   Private
+router.delete('/:id/comments/:comment_id', auth, async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    const comment = blog.comments.find(comment => comment.id === req.params.comment_id);
+
+    if (!comment) {
+      return res.status(404).json({ msg: 'Comment does not exist' });
+    }
+
+    if (comment.user.toString() !== req.user.id) {
+      return res.status(401).json({ msg: 'User not authorized' });
+    }
+
+    blog.comments = blog.comments.filter(({ id }) => id !== req.params.comment_id);
+
+    await blog.save();
+    res.json(blog.comments);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
   }
 });
 

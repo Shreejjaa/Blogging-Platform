@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Navbar.css';
+import Search from './Search';
+import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
-  const user = JSON.parse(localStorage.getItem('user'));
+  const { isAuthenticated, user, logout } = useAuth();
 
   // Dark mode state
   const [darkMode, setDarkMode] = useState(() => {
@@ -22,47 +23,43 @@ const Navbar = () => {
   }, [darkMode]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    alert('Logged out');
+    logout();
     navigate('/login');
   };
 
   return (
-    <nav className="navbar">
-      <div className="logo">📝 BlogApp</div>
-      <ul className="nav-links">
-        <li><Link to="/blogs">Blogs</Link></li>
-        {token && <li><Link to="/create">Create</Link></li>}
-        {!token && <li><Link to="/register">Register</Link></li>}
-        {!token && <li><Link to="/login">Login</Link></li>}
-
-        {token && (
+    <nav className="bg-gray-800 text-white p-4 flex justify-between items-center">
+      <div className="flex items-center space-x-4">
+        <Link to="/" className="text-2xl font-bold">📝 BlogApp</Link>
+        <Search />
+      </div>
+      <div className="flex items-center space-x-4">
+        <Link to="/blogs" className="hover:text-gray-300">Blogs</Link>
+        {isAuthenticated ? (
           <>
-            <li className="username">👤 {user?.username}</li>
-            <li><Link to="/profile">Profile</Link></li>
-
-            {/* ✅ Admin link only for admin users */}
-            {user?.isAdmin && (
-              <li><Link to="/admin">Admin</Link></li>
+            <Link to="/create" className="hover:text-gray-300">Create Post</Link>
+            <Link to="/profile" className="hover:text-gray-300">Profile</Link>
+            {user && user.isAdmin && (
+              <Link to="/admin" className="hover:text-gray-300">Admin</Link>
             )}
-
-            <li>
-              <button onClick={handleLogout} className="logout-btn">Logout</button>
-            </li>
+            <button onClick={handleLogout} className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            <Link to="/login" className="hover:text-gray-300">Login</Link>
+            <Link to="/register" className="hover:text-gray-300">Register</Link>
           </>
         )}
-
-        <li>
-          <button
-            className="dark-mode-toggle"
-            onClick={() => setDarkMode(!darkMode)}
-            title="Toggle Dark Mode"
-          >
-            {darkMode ? '🌞' : '🌙'}
-          </button>
-        </li>
-      </ul>
+        <button
+          className="dark-mode-toggle"
+          onClick={() => setDarkMode(!darkMode)}
+          title="Toggle Dark Mode"
+        >
+          {darkMode ? '🌞' : '🌙'}
+        </button>
+      </div>
     </nav>
   );
 };

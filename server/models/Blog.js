@@ -1,32 +1,55 @@
 const mongoose = require('mongoose');
 
-const commentSchema = new mongoose.Schema({
-  author: String,
-  content: String,
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
 const blogSchema = new mongoose.Schema({
-  title: String,
-  content: String,
-  author: String,
-  createdAt: {
-    type: Date,
-    default: Date.now
+  title: {
+    type: String,
+    required: true,
+    trim: true
   },
-  comments: [commentSchema],
-  likes: {
+  content: {
+    type: String,
+    required: true
+  },
+  coverImage: {
+    type: String, // URL to the image from Cloudinary
+    default: ''
+  },
+  author: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['draft', 'published'],
+    default: 'published'
+  },
+  tags: {
     type: [String],
     default: []
   },
-  categories: {
-    type: [String],
-    default: []
-  }
+  likes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  comments: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    text: {
+      type: String,
+      required: true
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+}, {
+  timestamps: true
 });
 
-// ✅ This line was missing
+blogSchema.index({ title: 'text', content: 'text', tags: 'text' });
+
 module.exports = mongoose.model('Blog', blogSchema);

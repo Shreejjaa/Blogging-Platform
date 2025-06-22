@@ -1,11 +1,17 @@
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
+  googleId: {
+    type: String,
+  },
   username: {
     type: String,
     required: true,
     unique: true,
-    trim: true
+  },
+  name: {
+    type: String,
+    required: false, // Made optional since we have username
   },
   email: {
     type: String,
@@ -15,7 +21,7 @@ const UserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true
+    required: false // <-- Not required for OAuth users
   },
   isAdmin: {
     type: Boolean,
